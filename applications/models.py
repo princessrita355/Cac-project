@@ -10,7 +10,7 @@ from io import BytesIO
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.template.loader import render_to_string
-from weasyprint import HTML # type: ignore
+from weasyprint import HTML 
 
 def upload_path(instance, kind, filename):
     ref = instance.reference_id or ("TMP-" + uuid.uuid4().hex[:8].upper())
