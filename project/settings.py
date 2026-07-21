@@ -31,7 +31,10 @@ ALLOWED_HOSTS = []
 SITE_URL = 'http://localhost:8000'
 # Application definition
 
+LOGOUT_REDIRECT_URL = "/"
+
 INSTALLED_APPS = [
+    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -130,3 +133,48 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'assets')
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+
+JAZZMIN_SETTINGS = {
+    "top_save_buttons": False, 
+    "site_title": "Corporate Affairs Commission",
+    "site_header": "CAC Administrator",
+    "welcome_sign": "Welcome to CAC Admin panel",
+    "copyright": "Rita",
+    "topmenu_links":[
+        {"app":"applications"},
+    ],
+    "show_ui_builder": True,
+    
+}
+JAZZMIN_UI_TWEAKS = {
+    "navbar_small_text": False,
+    "footer_small_text": False,
+    "body_small_text": True,
+    "brand_small_text": False,
+    "brand_colour": "navbar-success",
+    "accent": "accent-navy",
+    "navbar": "navbar-success navbar-dark",
+    "no_navbar_border": True,
+    "navbar_fixed": True,
+    "layout_boxed": False,
+    "footer_fixed": False,
+    "sidebar_fixed": True,
+    "sidebar": "sidebar-dark-lime",
+    "sidebar_nav_small_text": False,
+    "sidebar_disable_expand": False,
+    "sidebar_nav_child_indent": False,
+    "sidebar_nav_compact_style": False,
+    "sidebar_nav_legacy_style": True,
+    "sidebar_nav_flat_style": False,
+    "theme": "default",
+    "dark_mode_theme": None,
+    "button_classes": {
+        "primary": "btn-outline-primary",
+        "secondary": "btn-outline-secondary",
+        "info": "btn-info",
+        "warning": "btn-warning",
+        "danger": "btn-danger",
+        "success": "btn-success"
+    }
+}

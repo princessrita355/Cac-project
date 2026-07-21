@@ -8,6 +8,9 @@ import hashlib
 import qrcode
 from io import BytesIO
 from django.core.files import File
+from django.core.files.base import ContentFile
+from django.template.loader import render_to_string
+from weasyprint import HTML # type: ignore
 
 def upload_path(instance, kind, filename):
     ref = instance.reference_id or ("TMP-" + uuid.uuid4().hex[:8].upper())
@@ -25,6 +28,10 @@ def nin_upload_path(instance, filename):
 def qr_upload_path(instance, filename):
     return upload_path(instance, "qr", filename)
 
+def certificate_upload_path(instance, filename):
+    return upload_path(instance, "certificate", filename)
+
+# details that are saved in the database
 class Application(models.Model):
     class Status(models.TextChoices):
         SUBMITTED = "submitted", "Submitted"
@@ -60,7 +67,7 @@ class Application(models.Model):
     passport = models.ImageField(upload_to=passport_upload_path)
     signature = models.ImageField(upload_to=signature_upload_path)
     nin = models.FileField(upload_to=nin_upload_path)
-
+    certificate = models.FileField( upload_to=certificate_upload_path,null=True, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.SUBMITTED)
     agent_note = models.TextField(blank=True)  # active CAC query
     previous_notes = models.JSONField(default=list, blank=True)  # query history
@@ -87,7 +94,7 @@ class Application(models.Model):
                 self.registration_number = number
                 return number
     
-
+    #Function to generate the hash signature
     def generate_signature(self):
         data = f"{self.registration_number}{self.proposed_name_1}{self.owner_first_name}{self.owner_last_name}{self.approved_at}"
         self.digital_signature = hashlib.sha256(data.encode("utf-8")).hexdigest()
@@ -117,7 +124,17 @@ class Application(models.Model):
         buffer.seek(0)
         filename = f"QR-{self.registration_number}.png"
         self.qr_code.save(filename, File(buffer), save=False)
+    
+    def generate_and_save_certificate(self):
+        html = render_to_string("certificate/certificate.html", {
+            "application": self
+        })
 
+        pdf = HTML(string=html).write_pdf()
+
+        filename = f"CERT-{self.registration_number}.pdf"
+
+        self.certificate.save(filename,ContentFile(pdf),save=False)
 
     def approve(self, staff_user=None):
         if self.status == self.Status.APPROVED:
@@ -134,9 +151,10 @@ class Application(models.Model):
             self.generate_verification_token()
         self.generate_qr_code()
         self.generate_signature()
+        self.generate_and_save_certificate()
         self.save()
     
-
+     #Function to add agent note
     def add_query_note(self, note):
         """Staff adds a new query note"""
         if self.agent_note:
@@ -144,7 +162,8 @@ class Application(models.Model):
         self.agent_note = note
         self.status = self.Status.QUERIED
         self.save()
-
+     
+     #Function to clear note
     def clear_query_note(self):
         """User resubmits after correction"""
         self.agent_note = ""

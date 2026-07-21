@@ -80,6 +80,7 @@ class ApplicationAdmin(admin.ModelAdmin):
                 obj.approved_at = timezone.now()
                 obj.approved_by = request.user
                 obj.generate_signature()
+                obj.generate_and_save_certificate()
 
             # Handle query notes as before
             new_note = form.cleaned_data.get("agent_note", "").strip()
@@ -119,6 +120,8 @@ class ApplicationAdmin(admin.ModelAdmin):
     # Actions
     actions = ["mark_approved", "mark_queried"]
 
+
+    #Function to Approve application
     def mark_approved(self, request, queryset):
         for obj in queryset:
             obj.approve(staff_user=request.user)  # ✅ USE MODEL LOGIC

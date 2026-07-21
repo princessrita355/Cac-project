@@ -8,10 +8,10 @@ from django.core.exceptions import ValidationError
 from django.views.decorators.http import require_http_methods
 from .models import Profile
 
-
+# Create your views here.
 
 User = get_user_model()
-# Create your views here.
+# Function to Signup 
 @require_http_methods(["GET", "POST"])
 def signup(request):
     list(get_messages(request))
@@ -92,8 +92,10 @@ def signup(request):
     messages.success(request, "Account created successfully. Please log in.")
     return redirect("accounts:login")
 
+    
 
 
+#Function to Login
 @require_http_methods(["GET", "POST"])
 def login_view(request):
     if request.method == "GET":
@@ -119,7 +121,7 @@ def login_view(request):
         return redirect("/admin/")     # Django admin
     return redirect("dashboard:home")      # Normal user dashboard
 
-
+#Function To Logout
 def logout_view(request):
     logout(request)
     messages.info(request, "You have been logged out.")

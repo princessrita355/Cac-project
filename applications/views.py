@@ -10,6 +10,8 @@ from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from weasyprint import HTML # type: ignore
 
+
+#Functions to submit Application
 @login_required
 @require_http_methods(["GET", "POST"])
 def start_application(request):
@@ -101,6 +103,7 @@ def my_applications_api(request):
     return JsonResponse({"applications": data})
 
 
+#Function to Modify Submitted  Application
 @login_required
 @require_http_methods(["GET", "POST"])
 def modify_application(request, reference_id):
@@ -160,6 +163,7 @@ def modify_application(request, reference_id):
     messages.success(request, "Application corrected and resubmitted successfully.")
     return redirect("dashboard:home")
 
+#Function to download certificate
 @login_required
 def download_certificate(request, reference_id):
     application = get_object_or_404(
@@ -180,6 +184,7 @@ def download_certificate(request, reference_id):
 
     return response
 
+# Function to view certificate
 @login_required
 def view_certificate(request, reference_id):
     application = get_object_or_404(
@@ -197,6 +202,7 @@ def view_certificate(request, reference_id):
         "application": application
     })
 
+#Function to Verify Certificate
 @csrf_exempt
 def verify_certificate(request,token):
     token = request.GET.get("token")
@@ -234,6 +240,7 @@ def verify_certificate(request,token):
         "qr_code_url":qr_code_url
     })
 
+# Function to verify the certificate publicly
 def public_search(request):
     reg_number = request.GET.get("registration_number", "").strip()
     application = None

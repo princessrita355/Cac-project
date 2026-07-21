@@ -3,6 +3,7 @@ from django.db import models
 
 
 # Create your models here.
+#Profiles Model which holds the account type
 class Profile(models.Model):
     ACCOUNT_TYPES = (
         ("public", "Public User"),
