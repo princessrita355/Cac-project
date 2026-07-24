@@ -6,6 +6,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_http_methods
 from .models import Application 
 from django.template.loader import render_to_string
+from django.http import FileResponse
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from weasyprint import HTML # type: ignore
@@ -164,6 +165,28 @@ def modify_application(request, reference_id):
     return redirect("dashboard:home")
 
 #Function to download certificate
+#@login_required
+#def download_certificate(request, reference_id):
+  #  application = get_object_or_404(
+  #      Application,
+   #     reference_id=reference_id,
+   #     user=request.user
+   # )
+    # 🚨 Only approved applications can download
+ #   if application.status != Application.Status.APPROVED:
+ #       return HttpResponse("Certificate not available", status=403)
+ #   html_string = render_to_string("certificate/certificate.html", {
+ #   "application": application
+#})
+   # response = HttpResponse(content_type="application/pdf")
+    #response['Content-Disposition'] = f'attachment; filename="certificate_{application.registration_number}.pdf"'
+
+  #HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf(response)
+   # return response
+
+
+  
+
 @login_required
 def download_certificate(request, reference_id):
     application = get_object_or_404(
@@ -171,18 +194,18 @@ def download_certificate(request, reference_id):
         reference_id=reference_id,
         user=request.user
     )
-    # 🚨 Only approved applications can download
+
     if application.status != Application.Status.APPROVED:
         return HttpResponse("Certificate not available", status=403)
-    html_string = render_to_string("certificate/certificate.html", {
-    "application": application
-})
-    response = HttpResponse(content_type="application/pdf")
-    response['Content-Disposition'] = f'attachment; filename="certificate_{application.registration_number}.pdf"'
 
-    HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf(response)
+    if not application.certificate:
+        return HttpResponse("Certificate file not found.", status=404)
 
-    return response
+    return FileResponse(
+        application.certificate.open("rb"),
+        as_attachment=True,
+        filename=f"certificate_{application.registration_number}.pdf",
+    )
 
 # Function to view certificate
 @login_required
