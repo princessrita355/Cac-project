@@ -131,7 +131,7 @@ class Application(models.Model):
             "application": self
         })
 
-        pdf = HTML(string=html,base_url=settings.SITE_URL).write_pdf()
+        pdf = HTML(string=html,base_url=settings.BASE_DIR).write_pdf()
 
         filename = f"CERT-{self.registration_number}.pdf"
 
@@ -152,8 +152,20 @@ class Application(models.Model):
             self.generate_verification_token()
         self.generate_qr_code()
         self.generate_signature()
+
+        self.save(update_fields=[
+            "status",
+            "approved_at",
+            "approved_by",
+            "registration_number",
+            "verification_token",
+            "qr_code",
+            "digital_signature",
+        ])
+
         self.generate_and_save_certificate()
-        self.save()
+
+        self.save(update_fields=["certificate"])
     
      #Function to add agent note
     def add_query_note(self, note):
