@@ -11,6 +11,7 @@ from django.core.files import File
 from django.core.files.base import ContentFile
 from django.template.loader import render_to_string
 from weasyprint import HTML 
+from django.templatetags.static import static
 
 def upload_path(instance, kind, filename):
     ref = instance.reference_id or ("TMP-" + uuid.uuid4().hex[:8].upper())
@@ -130,7 +131,7 @@ class Application(models.Model):
             "application": self
         })
 
-        pdf = HTML(string=html).write_pdf()
+        pdf = HTML(string=html,base_url=settings.SITE_URL).write_pdf()
 
         filename = f"CERT-{self.registration_number}.pdf"
 

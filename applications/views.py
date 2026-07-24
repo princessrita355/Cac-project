@@ -9,7 +9,7 @@ from django.template.loader import render_to_string
 from django.http import FileResponse
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
-from weasyprint import HTML # type: ignore
+from weasyprint import HTML 
 
 
 #Functions to submit Application
