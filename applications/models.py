@@ -6,6 +6,7 @@ import random
 import string
 import hashlib
 import qrcode
+import os
 from io import BytesIO
 from django.core.files import File
 from django.core.files.base import ContentFile
@@ -127,8 +128,19 @@ class Application(models.Model):
         self.qr_code.save(filename, File(buffer), save=False)
     
     def generate_and_save_certificate(self):
-        html = render_to_string("certificate/certificate.html", {
-            "application": self
+        logo_path = os.path.join(settings.BASE_DIR,"static","images","arm.png" ).replace("\\", "/")
+        watermark_path = os.path.join(settings.BASE_DIR,"static","images","watermark.png" ).replace("\\", "/")
+        signature_path = os.path.join(settings.BASE_DIR,"static","images","sign.png" ).replace("\\", "/")
+
+        #QR code URL (works for both local storage and Cloudinary)
+        qr_path = self.qr_code.url if self.qr_code else None
+        
+        html = render_to_string("certificate/certificate-pdf.html", {
+            "application": self,
+            "logo_path":logo_path,
+            "watermark_path":watermark_path,
+            "signature_path":signature_path,
+            "qr_path":qr_path,
         })
 
         pdf = HTML(string=html,base_url=settings.BASE_DIR).write_pdf()
