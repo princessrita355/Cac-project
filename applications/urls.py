@@ -11,4 +11,6 @@ urlpatterns = [
     path("certificate/view/<str:reference_id>/", views.view_certificate, name="view_certificate"),
     path("verify/<str:token>/", views.verify_certificate, name="verify_certificate"),
     path('public-search/', views.public_search, name='public_search'),
+    path("certificate/public/<str:token>/",views.public_certificate,name="public_certificate",)
+
 ]

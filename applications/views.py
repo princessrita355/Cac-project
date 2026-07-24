@@ -296,3 +296,18 @@ def public_search(request):
         "qr_code_url": qr_code_url,
         "search_query": reg_number,
     })
+
+def public_certificate(request, token):
+    application = get_object_or_404(
+        Application,
+        verification_token=token,
+        status=Application.Status.APPROVED
+    )
+
+    return render(
+        request,
+        "certificate/certificate.html",
+        {
+            "application": application
+        }
+    )
