@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_http_methods
-from .models import Application,NameReservation, Payment, SystemFee
+from .models import Application,NameReservation, Payment, SystemFee,CompanyDetails,CompanyDirector,CompanyShareholder
 from django.template.loader import render_to_string
 from django.http import FileResponse
 from django.http import HttpResponse
@@ -88,6 +88,7 @@ def name_reservation(request):
         "available": None,
         "checked_name": "",
         "reservation_fee": None,
+        "registration_type":"",
     }
 
     # Open the reservation page
@@ -103,6 +104,30 @@ def name_reservation(request):
     proposed_name = normalize_business_name(
         request.POST.get("proposed_name", "")
     )
+    registration_type = request.POST.get(
+        "registration_type",
+        ""
+    ).strip()
+
+    # ============================================================
+    # VALIDATE REGISTRATION TYPE
+    # ============================================================
+
+    valid_registration_types = [
+        NameReservation.RegistrationType.BUSINESS,
+        NameReservation.RegistrationType.COMPANY,
+    ]
+
+    if registration_type not in valid_registration_types:
+
+        messages.error(
+            request,
+            "Please select whether you want to register a Business Name or Company."
+        )
+
+        return redirect(
+            "applications:name_reservation"
+        )
 
     # -----------------------------------------
     # CHECK NAME AVAILABILITY
@@ -112,7 +137,7 @@ def name_reservation(request):
         if not proposed_name:
             messages.error(
                 request,
-                "Please enter a proposed business name."
+                "Please enter a proposed business/company name."
             )
             return redirect("applications:name_reservation")
 
@@ -120,6 +145,7 @@ def name_reservation(request):
 
         context["available"] = available
         context["checked_name"] = proposed_name
+        context["registration_type"] = registration_type
 
         if available:
 
@@ -154,7 +180,7 @@ def name_reservation(request):
         if not proposed_name:
             messages.error(
                 request,
-                "Please enter a proposed business name."
+                "Please enter a proposed business/company name."
             )
             return redirect("applications:name_reservation")
 
@@ -188,12 +214,21 @@ def name_reservation(request):
         reservation = NameReservation.objects.create(
             user=request.user,
             proposed_name=proposed_name,
+            # NEW:
+            # Save whether this reservation is for a
+            # Business Name or Company.
+            registration_type=registration_type,
             reservation_fee=fee,
             status=NameReservation.Status.AWAITING_PAYMENT
+        )
+        # Get a readable label for the success message
+        registration_type_label = (
+            reservation.get_registration_type_display()
         )
 
         messages.success(
             request,
+            f"{registration_type_label} name reservation created. "
             f"Please proceed to payment. "
             f"The name will only become officially reserved after your payment is confirmed by CAC staff."
         )
@@ -519,12 +554,18 @@ def start_application(request):
     if not confirmed_reservation:
         messages.error(
             request,
-            "You must have a confirmed business name reservation before starting an application."
+            "You must have a confirmed Business/Company name reservation before starting an application."
         )
         return redirect("applications:name_reservation")
 
+    # ------------------------------------------------------------ 
+    # # CHECK REGISTRATION TYPE 
+    # # ------------------------------------------------------------ 
+    if confirmed_reservation.registration_type == NameReservation.RegistrationType.COMPANY:
+        return redirect("applications:company_start")
+
     # ------------------------------------------------------------
-    # GET REQUEST
+    # GET REQUEST - Business name
     # ------------------------------------------------------------
 
     if request.method == "GET":
@@ -607,7 +648,7 @@ def start_application(request):
     if confirmed_reservation.status != NameReservation.Status.RESERVED:
         messages.error(
             request,
-            "Your business name reservation is no longer confirmed. "
+            "Your business/company name reservation is no longer confirmed. "
             "Please check your name reservation status."
         )
         return redirect("applications:name_reservation")
@@ -824,6 +865,440 @@ def start_application(request):
     )
 
 
+@login_required
+def company_start_application(request):
+    """
+    Create a new Company registration application
+    from a confirmed Company name reservation.
+    """
+
+    confirmed_reservation = (
+        NameReservation.objects
+        .filter(
+            user=request.user,
+            status=NameReservation.Status.RESERVED,
+            registration_type=NameReservation.RegistrationType.COMPANY,
+            application__isnull=True
+        )
+        .order_by("-confirmed_at")
+        .first()
+    )
+
+    if not confirmed_reservation:
+        messages.error(
+            request,
+            "You do not have a confirmed Company name reservation available."
+        )
+        return redirect("applications:name_reservation")
+
+
+    # -----------------------------
+    # GET
+    # -----------------------------
+    if request.method == "GET":
+        return render(
+            request,
+            "applications/company_application.html",
+            {
+                "confirmed_reservation": confirmed_reservation,
+            }
+        )
+
+
+    # -----------------------------
+    # POST
+    # -----------------------------
+    proposed_name_1 = normalize_business_name(
+        request.POST.get("proposed_name_1")
+    )
+
+    principal_business_activity = (
+        request.POST.get("principal_business_activity") or ""
+    ).strip()
+
+    company_type = (
+        request.POST.get("company_type") or ""
+    ).strip()
+
+    state = normalize_business_name(
+        request.POST.get("state")
+    )
+
+    lga = normalize_business_name(
+        request.POST.get("lga")
+    )
+
+    business_address = normalize_business_name(
+        request.POST.get("business_address")
+    )
+
+    company_email = (
+        request.POST.get("company_email") or ""
+    ).strip()
+
+    company_phone = (
+        request.POST.get("company_phone") or ""
+    ).strip()
+
+    business_description = (
+        request.POST.get("business_description") or ""
+    ).strip()
+
+
+    passport = request.FILES.get("passport")
+    signature = request.FILES.get("signature")
+    nin = request.FILES.get("nin")
+
+
+    # -----------------------------
+    # Basic validation
+    # -----------------------------
+    if not proposed_name_1:
+        messages.error(
+            request,
+            "The confirmed Company name is required."
+        )
+        return redirect("applications:company_start")
+
+
+    if proposed_name_1 != normalize_business_name(
+        confirmed_reservation.proposed_name
+    ):
+        messages.error(
+            request,
+            "The Company name does not match the confirmed reservation."
+        )
+        return redirect("applications:company_start")
+
+
+    if not company_type:
+        messages.error(
+            request,
+            "Please select a Company type."
+        )
+        return redirect("applications:company_start")
+
+
+    if not principal_business_activity:
+        messages.error(
+            request,
+            "Principal business activity is required."
+        )
+        return redirect("applications:company_start")
+
+
+    if not state or not lga:
+        messages.error(
+            request,
+            "State and LGA are required."
+        )
+        return redirect("applications:company_start")
+
+
+    if not business_address:
+        messages.error(
+            request,
+            "Registered office address is required."
+        )
+        return redirect("applications:company_start")
+
+
+    if not company_email:
+        messages.error(
+            request,
+            "Company email is required."
+        )
+        return redirect("applications:company_start")
+
+
+    if not company_phone:
+        messages.error(
+            request,
+            "Company phone is required."
+        )
+        return redirect("applications:company_start")
+
+
+    if not passport or not signature or not nin:
+        messages.error(
+            request,
+            "Passport, Signature and NIN are required."
+        )
+        return redirect("applications:company_start")
+
+
+    # -----------------------------
+    # Get directors
+    # -----------------------------
+    director_first_names = request.POST.getlist(
+        "director_first_name[]"
+    )
+
+    director_last_names = request.POST.getlist(
+        "director_last_name[]"
+    )
+
+    director_emails = request.POST.getlist(
+        "director_email[]"
+    )
+
+    director_phones = request.POST.getlist(
+        "director_phone[]"
+    )
+
+    director_addresses = request.POST.getlist(
+        "director_address[]"
+    )
+
+    director_dates_of_birth = request.POST.getlist(
+        "director_date_of_birth[]"
+    )
+
+    director_nationalities = request.POST.getlist(
+        "director_nationality[]"
+    )
+
+
+    # -----------------------------
+    # Validate directors
+    # -----------------------------
+    director_count = len(director_first_names)
+
+    if director_count == 0:
+        messages.error(
+            request,
+            "At least one Director is required."
+        )
+        return redirect("applications:company_start")
+
+
+    if not (
+        len(director_last_names)
+        == len(director_emails)
+        == len(director_phones)
+        == len(director_addresses)
+        == len(director_dates_of_birth)
+        == len(director_nationalities)
+        == director_count
+    ):
+        messages.error(
+            request,
+            "Please complete all Director information."
+        )
+        return redirect("applications:company_start")
+
+
+    # -----------------------------
+    # Get shareholders
+    # -----------------------------
+    shareholder_names = request.POST.getlist(
+        "shareholder_full_name[]"
+    )
+
+    shareholder_emails = request.POST.getlist(
+        "shareholder_email[]"
+    )
+
+    shareholder_phones = request.POST.getlist(
+        "shareholder_phone[]"
+    )
+
+    shareholder_shares = request.POST.getlist(
+        "shareholder_number_of_shares[]"
+    )
+
+    shareholder_percentages = request.POST.getlist(
+        "shareholder_shareholding_percentage[]"
+    )
+
+
+    # -----------------------------
+    # Validate shareholders
+    # -----------------------------
+    shareholder_count = len(shareholder_names)
+
+    if shareholder_count == 0:
+        messages.error(
+            request,
+            "At least one Shareholder is required."
+        )
+        return redirect("applications:company_start")
+
+
+    if not (
+        len(shareholder_emails)
+        == len(shareholder_phones)
+        == len(shareholder_shares)
+        == len(shareholder_percentages)
+        == shareholder_count
+    ):
+        messages.error(
+            request,
+            "Please complete all Shareholder information."
+        )
+        return redirect("applications:company_start")
+
+
+    # -----------------------------
+    # Prevent reservation reuse
+    # -----------------------------
+    if Application.objects.filter(
+        name_reservation=confirmed_reservation
+    ).exists():
+        messages.error(
+            request,
+            "This Company name reservation has already been used."
+        )
+        return redirect("applications:company_start")
+
+
+    # -----------------------------
+    # Get application fee
+    # -----------------------------
+    system_fee = SystemFee.objects.first()
+
+    if not system_fee:
+        messages.error(
+            request,
+            "Application fee has not been configured."
+        )
+        return redirect("applications:company_start")
+
+
+    # -----------------------------
+    # Save as draft?
+    # -----------------------------
+    save_as_draft = (
+        request.POST.get("save_as_draft") == "1"
+    )
+
+
+    # -----------------------------
+    # Create Application
+    # -----------------------------
+    application = Application.objects.create(
+        user=request.user,
+        name_reservation=confirmed_reservation,
+        registration_type=Application.RegistrationType.COMPANY,
+
+        proposed_name_1=proposed_name_1,
+        proposed_name_2="",
+
+        nature_of_business=principal_business_activity,
+        business_type=company_type,
+
+        state=state,
+        lga=lga,
+        business_address=business_address,
+
+        owner_first_name="",
+        owner_last_name="",
+        owner_email=company_email,
+        owner_phone=company_phone,
+
+        business_description=business_description,
+
+        passport=passport,
+        signature=signature,
+        nin=nin,
+
+        status=(
+            Application.Status.PENDING
+            if save_as_draft
+            else Application.Status.SUBMITTED
+        ),
+    )
+
+
+    # -----------------------------
+    # Create Company Details
+    # -----------------------------
+    CompanyDetails.objects.create(
+        application=application,
+        company_type=company_type,
+        principal_business_activity=principal_business_activity,
+        company_email=company_email,
+        company_phone=company_phone,
+        company_description=business_description,
+    )
+
+
+    # -----------------------------
+    # Create Directors
+    # -----------------------------
+    for i in range(director_count):
+
+        CompanyDirector.objects.create(
+            application=application,
+            first_name=director_first_names[i].strip(),
+            last_name=director_last_names[i].strip(),
+            email=director_emails[i].strip(),
+            phone=director_phones[i].strip(),
+            address=director_addresses[i].strip(),
+            date_of_birth=director_dates_of_birth[i],
+            nationality=director_nationalities[i].strip(),
+        )
+
+
+    # -----------------------------
+    # Create Shareholders
+    # -----------------------------
+    for i in range(shareholder_count):
+
+        CompanyShareholder.objects.create(
+            application=application,
+            full_name=shareholder_names[i].strip(),
+            email=shareholder_emails[i].strip(),
+            phone=shareholder_phones[i].strip(),
+            number_of_shares=shareholder_shares[i],
+            shareholding_percentage=shareholder_percentages[i],
+        )
+
+
+    # -----------------------------
+    # Save reservation relationship
+    # -----------------------------
+    confirmed_reservation.save(
+        update_fields=["updated_at"]
+    )
+
+
+    # -----------------------------
+    # Draft
+    # -----------------------------
+    if save_as_draft:
+
+        messages.success(
+            request,
+            "Company application saved as draft."
+        )
+
+        return redirect("dashboard:home")
+
+
+    # -----------------------------
+    # Create application payment
+    # -----------------------------
+    Payment.objects.create(
+        user=request.user,
+        application=application,
+        payment_type=Payment.PaymentType.APPLICATION,
+        amount=system_fee.application_fee,
+    )
+
+
+    messages.success(
+        request,
+        "Company application created successfully. "
+        "Please proceed to payment."
+    )
+
+    return redirect(
+        "applications:application_payment",
+        reference_id=application.reference_id
+    )
+
+
 
 
 @login_required
@@ -833,6 +1308,7 @@ def my_applications_api(request):
         {
             "reference_id": a.reference_id,
             "business_name": a.proposed_name_1,
+            "registration_type": a.registration_type,
             "status": a.status,
             "status_label": a.get_status_display(),
             "agent_note": a.agent_note,
@@ -856,7 +1332,10 @@ def modify_application(request, reference_id):
         user=request.user
     )
 
-    # Only queried applications can be modified
+    # ------------------------------------------------------------
+    # ONLY QUERIED APPLICATIONS CAN BE MODIFIED
+    # ------------------------------------------------------------
+
     if app.status != Application.Status.QUERIED:
         messages.error(
             request,
@@ -864,11 +1343,495 @@ def modify_application(request, reference_id):
         )
         return redirect("dashboard:home")
 
+    # ============================================================
+    # COMPANY APPLICATION
+    # ============================================================
+
+    if app.registration_type == Application.RegistrationType.COMPANY:
+
+        company_details = getattr(
+            app,
+            "company_details",
+            None
+        )
+
+        # --------------------------------------------------------
+        # GET REQUEST
+        # --------------------------------------------------------
+
+        if request.method == "GET":
+
+            return render(
+                request,
+                "applications/modify-application.html",
+                {
+                    "app": app,
+                    "reserved_name": (
+                        app.name_reservation.proposed_name
+                        if app.name_reservation
+                        else app.proposed_name_1
+                    ),
+                    "company_details": company_details,
+                    "directors": app.company_directors.all(),
+                    "shareholders": app.company_shareholders.all(),
+                }
+            )
+
+        # --------------------------------------------------------
+        # KEEP PROPOSED NAME FROM OFFICIAL RESERVATION
+        # --------------------------------------------------------
+
+        if app.name_reservation:
+
+            app.proposed_name_1 = normalize_business_name(
+                app.name_reservation.proposed_name
+            )
+
+        else:
+
+            app.proposed_name_1 = normalize_business_name(
+                app.proposed_name_1
+            )
+
+        # --------------------------------------------------------
+        # COMPANY DETAILS
+        # --------------------------------------------------------
+
+        company_type = (
+            request.POST.get("company_type") or ""
+        ).strip()
+
+        principal_business_activity = (
+            request.POST.get("principal_business_activity") or ""
+        ).strip()
+
+        state = (
+            request.POST.get("state") or ""
+        ).strip().upper()
+
+        lga = (
+            request.POST.get("lga") or ""
+        ).strip().upper()
+
+        business_address = (
+            request.POST.get("business_address") or ""
+        ).strip().upper()
+
+        company_email = (
+            request.POST.get("company_email") or ""
+        ).strip()
+
+        company_phone = (
+            request.POST.get("company_phone") or ""
+        ).strip()
+
+        business_description = (
+            request.POST.get("business_description") or ""
+        ).strip()
+
+        # --------------------------------------------------------
+        # DIRECTORS
+        # --------------------------------------------------------
+
+        director_first_names = request.POST.getlist(
+            "director_first_name[]"
+        )
+
+        director_last_names = request.POST.getlist(
+            "director_last_name[]"
+        )
+
+        director_emails = request.POST.getlist(
+            "director_email[]"
+        )
+
+        director_phones = request.POST.getlist(
+            "director_phone[]"
+        )
+
+        director_addresses = request.POST.getlist(
+            "director_address[]"
+        )
+
+        director_dates_of_birth = request.POST.getlist(
+            "director_date_of_birth[]"
+        )
+
+        director_nationalities = request.POST.getlist(
+            "director_nationality[]"
+        )
+
+        # --------------------------------------------------------
+        # SHAREHOLDERS
+        # --------------------------------------------------------
+
+        shareholder_names = request.POST.getlist(
+            "shareholder_full_name[]"
+        )
+
+        shareholder_emails = request.POST.getlist(
+            "shareholder_email[]"
+        )
+
+        shareholder_phones = request.POST.getlist(
+            "shareholder_phone[]"
+        )
+
+        shareholder_shares = request.POST.getlist(
+            "shareholder_number_of_shares[]"
+        )
+
+        shareholder_percentages = request.POST.getlist(
+            "shareholder_shareholding_percentage[]"
+        )
+
+        # --------------------------------------------------------
+        # VALIDATION
+        # --------------------------------------------------------
+
+        errors = []
+
+        if not company_details:
+            errors.append(
+                "Company details could not be found."
+            )
+
+        if not app.proposed_name_1:
+            errors.append(
+                "Proposed Company Name is required."
+            )
+
+        if not company_type:
+            errors.append(
+                "Company Type is required."
+            )
+
+        if not principal_business_activity:
+            errors.append(
+                "Principal Business Activity is required."
+            )
+
+        if not state:
+            errors.append(
+                "State is required."
+            )
+
+        if not lga:
+            errors.append(
+                "LGA is required."
+            )
+
+        if not business_address:
+            errors.append(
+                "Registered Office Address is required."
+            )
+
+        if not company_email:
+            errors.append(
+                "Company Email is required."
+            )
+
+        if not company_phone:
+            errors.append(
+                "Company Phone is required."
+            )
+
+        # --------------------------------------------------------
+        # VALIDATE DIRECTORS
+        # --------------------------------------------------------
+
+        director_count = len(director_first_names)
+
+        if director_count == 0:
+
+            errors.append(
+                "At least one Director is required."
+            )
+
+        elif not (
+            len(director_last_names) == director_count
+            and len(director_emails) == director_count
+            and len(director_phones) == director_count
+            and len(director_addresses) == director_count
+            and len(director_dates_of_birth) == director_count
+            and len(director_nationalities) == director_count
+        ):
+
+            errors.append(
+                "Please complete all Director information."
+            )
+
+        # --------------------------------------------------------
+        # VALIDATE SHAREHOLDERS
+        # --------------------------------------------------------
+
+        shareholder_count = len(shareholder_names)
+
+        if shareholder_count == 0:
+
+            errors.append(
+                "At least one Shareholder is required."
+            )
+
+        elif not (
+            len(shareholder_emails) == shareholder_count
+            and len(shareholder_phones) == shareholder_count
+            and len(shareholder_shares) == shareholder_count
+            and len(shareholder_percentages) == shareholder_count
+        ):
+
+            errors.append(
+                "Please complete all Shareholder information."
+            )
+
+        # --------------------------------------------------------
+        # VALIDATE DIRECTOR DATES
+        # --------------------------------------------------------
+
+        from datetime import date
+
+        director_birth_dates = []
+
+        if director_count > 0 and (
+            len(director_dates_of_birth) == director_count
+        ):
+
+            for i in range(director_count):
+
+                try:
+
+                    birth_date = date.fromisoformat(
+                        director_dates_of_birth[i]
+                    )
+
+                    director_birth_dates.append(
+                        birth_date
+                    )
+
+                except (ValueError, TypeError):
+
+                    errors.append(
+                        f"Invalid date of birth for Director {i + 1}."
+                    )
+
+        # --------------------------------------------------------
+        # VALIDATE SHARE VALUES
+        # --------------------------------------------------------
+
+        validated_share_numbers = []
+        validated_share_percentages = []
+
+        if shareholder_count > 0 and (
+            len(shareholder_shares) == shareholder_count
+            and len(shareholder_percentages) == shareholder_count
+        ):
+
+            for i in range(shareholder_count):
+
+                try:
+
+                    number_of_shares = int(
+                        shareholder_shares[i]
+                    )
+
+                    if number_of_shares <= 0:
+                        raise ValueError
+
+                    validated_share_numbers.append(
+                        number_of_shares
+                    )
+
+                except (ValueError, TypeError):
+
+                    errors.append(
+                        f"Invalid number of shares for Shareholder {i + 1}."
+                    )
+
+                try:
+
+                    percentage = float(
+                        shareholder_percentages[i]
+                    )
+
+                    if percentage < 0 or percentage > 100:
+                        raise ValueError
+
+                    validated_share_percentages.append(
+                        percentage
+                    )
+
+                except (ValueError, TypeError):
+
+                    errors.append(
+                        f"Invalid shareholding percentage for Shareholder {i + 1}."
+                    )
+
+        # --------------------------------------------------------
+        # IF VALIDATION FAILS
+        # --------------------------------------------------------
+
+        if errors:
+
+            for error in errors:
+                messages.error(
+                    request,
+                    error
+                )
+
+            return render(
+                request,
+                "applications/modify-application.html",
+                {
+                    "app": app,
+                    "reserved_name": (
+                        app.name_reservation.proposed_name
+                        if app.name_reservation
+                        else app.proposed_name_1
+                    ),
+                    "company_details": company_details,
+                    "directors": app.company_directors.all(),
+                    "shareholders": app.company_shareholders.all(),
+                }
+            )
+
+        # ========================================================
+        # UPDATE APPLICATION
+        # ========================================================
+
+        app.nature_of_business = (
+            principal_business_activity
+        )
+
+        app.business_type = company_type
+
+        app.state = state
+
+        app.lga = lga
+
+        app.business_address = business_address
+
+        # Company applications do not use proprietor names
+        app.owner_first_name = ""
+        app.owner_last_name = ""
+
+        app.owner_email = company_email
+        app.owner_phone = company_phone
+
+        app.business_description = (
+            business_description
+        )
+
+        # --------------------------------------------------------
+        # FILE UPDATES
+        # --------------------------------------------------------
+
+        if request.FILES.get("passport"):
+
+            app.passport = request.FILES.get(
+                "passport"
+            )
+
+        if request.FILES.get("signature"):
+
+            app.signature = request.FILES.get(
+                "signature"
+            )
+
+        if request.FILES.get("nin"):
+
+            app.nin = request.FILES.get(
+                "nin"
+            )
+
+        # --------------------------------------------------------
+        # SAVE APPLICATION
+        # --------------------------------------------------------
+
+        app.save()
+
+        # ========================================================
+        # UPDATE COMPANY DETAILS
+        # ========================================================
+
+        company_details.company_type = company_type
+
+        company_details.principal_business_activity = (
+            principal_business_activity
+        )
+
+        company_details.company_email = company_email
+
+        company_details.company_phone = company_phone
+
+        company_details.company_description = (
+            business_description
+        )
+
+        company_details.save()
+
+        # ========================================================
+        # UPDATE DIRECTORS
+        # ========================================================
+
+        app.company_directors.all().delete()
+
+        for i in range(director_count):
+
+            CompanyDirector.objects.create(
+                application=app,
+                first_name=director_first_names[i].strip(),
+                last_name=director_last_names[i].strip(),
+                email=director_emails[i].strip(),
+                phone=director_phones[i].strip(),
+                address=director_addresses[i].strip(),
+                date_of_birth=director_birth_dates[i],
+                nationality=director_nationalities[i].strip(),
+            )
+
+        # ========================================================
+        # UPDATE SHAREHOLDERS
+        # ========================================================
+
+        app.company_shareholders.all().delete()
+
+        for i in range(shareholder_count):
+
+            CompanyShareholder.objects.create(
+                application=app,
+                full_name=shareholder_names[i].strip(),
+                email=shareholder_emails[i].strip(),
+                phone=shareholder_phones[i].strip(),
+                number_of_shares=validated_share_numbers[i],
+                shareholding_percentage=(
+                    validated_share_percentages[i]
+                ),
+            )
+
+        # ========================================================
+        # CLEAR QUERY AND RESUBMIT
+        # ========================================================
+
+        app.clear_query_note()
+
+        messages.success(
+            request,
+            "Company application corrected and resubmitted successfully."
+        )
+
+        return redirect(
+            "dashboard:home"
+        )
+
+    # ============================================================
+    # EXISTING BUSINESS APPLICATION
+    # ============================================================
+
     # ------------------------------------------------------------
     # GET REQUEST
     # ------------------------------------------------------------
 
     if request.method == "GET":
+
         return render(
             request,
             "applications/modify-application.html",
@@ -883,64 +1846,90 @@ def modify_application(request, reference_id):
         )
 
     # ------------------------------------------------------------
-    # KEEP PROPOSED NAME FROM THE OFFICIAL RESERVATION
+    # KEEP PROPOSED NAME FROM OFFICIAL RESERVATION
     # ------------------------------------------------------------
 
     if app.name_reservation:
+
         app.proposed_name_1 = normalize_business_name(
             app.name_reservation.proposed_name
         )
+
     else:
+
         app.proposed_name_1 = normalize_business_name(
             app.proposed_name_1
         )
 
     # ------------------------------------------------------------
-    # UPDATE OTHER FIELDS
+    # UPDATE BUSINESS FIELDS
     # ------------------------------------------------------------
 
     app.proposed_name_2 = normalize_business_name(
-        request.POST.get("proposed_name_2", "")
+        request.POST.get(
+            "proposed_name_2",
+            ""
+        )
     )
 
     app.nature_of_business = (
-        request.POST.get("nature_of_business") or ""
+        request.POST.get(
+            "nature_of_business"
+        ) or ""
     ).strip()
 
     app.business_type = (
-        request.POST.get("business_type") or ""
+        request.POST.get(
+            "business_type"
+        ) or ""
     ).strip()
 
     app.state = (
-        request.POST.get("state") or ""
+        request.POST.get(
+            "state"
+        ) or ""
     ).strip().upper()
 
     app.lga = (
-        request.POST.get("lga") or ""
+        request.POST.get(
+            "lga"
+        ) or ""
     ).strip().upper()
 
     app.business_address = (
-        request.POST.get("business_address") or ""
+        request.POST.get(
+            "business_address"
+        ) or ""
     ).strip().upper()
 
     app.owner_first_name = (
-        request.POST.get("owner_first_name") or ""
+        request.POST.get(
+            "owner_first_name"
+        ) or ""
     ).strip()
 
     app.owner_last_name = (
-        request.POST.get("owner_last_name") or ""
+        request.POST.get(
+            "owner_last_name"
+        ) or ""
     ).strip()
 
     app.owner_email = (
-        request.POST.get("owner_email") or ""
+        request.POST.get(
+            "owner_email"
+        ) or ""
     ).strip()
 
     app.owner_phone = (
-        request.POST.get("owner_phone") or ""
+        request.POST.get(
+            "owner_phone"
+        ) or ""
     ).strip()
 
     app.business_description = (
-        request.POST.get("business_description") or ""
+        request.POST.get(
+            "business_description"
+        ) or ""
     ).strip()
 
     # ------------------------------------------------------------
@@ -948,13 +1937,22 @@ def modify_application(request, reference_id):
     # ------------------------------------------------------------
 
     if request.FILES.get("passport"):
-        app.passport = request.FILES.get("passport")
+
+        app.passport = request.FILES.get(
+            "passport"
+        )
 
     if request.FILES.get("signature"):
-        app.signature = request.FILES.get("signature")
+
+        app.signature = request.FILES.get(
+            "signature"
+        )
 
     if request.FILES.get("nin"):
-        app.nin = request.FILES.get("nin")
+
+        app.nin = request.FILES.get(
+            "nin"
+        )
 
     # ------------------------------------------------------------
     # VALIDATION
@@ -963,27 +1961,68 @@ def modify_application(request, reference_id):
     errors = []
 
     required_fields = [
-        ("proposed_name_1", "Proposed Business Name"),
-        ("nature_of_business", "Nature of Business"),
-        ("business_type", "Business Type"),
-        ("state", "State"),
-        ("lga", "LGA"),
-        ("business_address", "Business Address"),
-        ("owner_first_name", "Owner First Name"),
-        ("owner_last_name", "Owner Last Name"),
-        ("owner_email", "Owner Email"),
-        ("owner_phone", "Owner Phone"),
+        (
+            "proposed_name_1",
+            "Proposed Business Name"
+        ),
+        (
+            "nature_of_business",
+            "Nature of Business"
+        ),
+        (
+            "business_type",
+            "Business Type"
+        ),
+        (
+            "state",
+            "State"
+        ),
+        (
+            "lga",
+            "LGA"
+        ),
+        (
+            "business_address",
+            "Business Address"
+        ),
+        (
+            "owner_first_name",
+            "Owner First Name"
+        ),
+        (
+            "owner_last_name",
+            "Owner Last Name"
+        ),
+        (
+            "owner_email",
+            "Owner Email"
+        ),
+        (
+            "owner_phone",
+            "Owner Phone"
+        ),
     ]
 
     for field, label in required_fields:
+
         if not getattr(app, field):
+
             errors.append(
                 f"{label} is required."
             )
 
+    # ------------------------------------------------------------
+    # VALIDATION ERRORS
+    # ------------------------------------------------------------
+
     if errors:
+
         for error in errors:
-            messages.error(request, error)
+
+            messages.error(
+                request,
+                error
+            )
 
         return render(
             request,
@@ -999,7 +2038,13 @@ def modify_application(request, reference_id):
         )
 
     # ------------------------------------------------------------
-    # SAVE CORRECTIONS
+    # SAVE BUSINESS APPLICATION
+    # ------------------------------------------------------------
+
+    app.save()
+
+    # ------------------------------------------------------------
+    # CLEAR QUERY AND RESUBMIT
     # ------------------------------------------------------------
 
     app.clear_query_note()
@@ -1009,44 +2054,47 @@ def modify_application(request, reference_id):
         "Application corrected and resubmitted successfully."
     )
 
-    return redirect("dashboard:home")
-
-#Function to download certificate
-#@login_required
-#def download_certificate(request, reference_id):
-  #  application = get_object_or_404(
-  #      Application,
-   #     reference_id=reference_id,
-   #     user=request.user
-   # )
-    # 🚨 Only approved applications can download
- #   if application.status != Application.Status.APPROVED:
- #       return HttpResponse("Certificate not available", status=403)
- #   html_string = render_to_string("certificate/certificate.html", {
- #   "application": application
-#})
-   # response = HttpResponse(content_type="application/pdf")
-    #response['Content-Disposition'] = f'attachment; filename="certificate_{application.registration_number}.pdf"'
-
-  #HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf(response)
-   # return response
+    return redirect(
+        "dashboard:home"
+    )
 
 
-  
-#Function to download certificate for the user when authenticated 
+
+# Function to download certificate for the user when authenticated
 @login_required
 def download_certificate(request, reference_id):
+
     application = get_object_or_404(
         Application,
         reference_id=reference_id,
         user=request.user
     )
 
+    payment = Payment.objects.filter(
+        application=application,
+        payment_type=Payment.PaymentType.APPLICATION
+    ).order_by("-created_at").first()
+
+    if (
+        not payment
+        or payment.status != Payment.Status.CONFIRMED
+    ):
+        return HttpResponse(
+            "Certificate not available because application payment has not been confirmed.",
+            status=403
+        )
+
     if application.status != Application.Status.APPROVED:
-        return HttpResponse("Certificate not available", status=403)
+        return HttpResponse(
+            "Certificate not available",
+            status=403
+        )
 
     if not application.certificate:
-        return HttpResponse("Certificate file not found.", status=404)
+        return HttpResponse(
+            "Certificate file not found.",
+            status=404
+        )
 
     return FileResponse(
         application.certificate.open("rb"),
@@ -1057,20 +2105,47 @@ def download_certificate(request, reference_id):
 # Function to view certificate when authenticated
 @login_required
 def view_certificate(request, reference_id):
+
     application = get_object_or_404(
         Application,
         reference_id=reference_id,
         user=request.user
     )
 
-    if application.status != Application.Status.APPROVED:
-        return render(request, "error.html", {
-            "message": "Certificate not available"
-        })
+    payment = Payment.objects.filter(
+        application=application,
+        payment_type=Payment.PaymentType.APPLICATION
+    ).order_by("-created_at").first()
 
-    return render(request, "certificate/certificate.html", {
-        "application": application
-    })
+    if (
+        not payment
+        or payment.status != Payment.Status.CONFIRMED
+    ):
+        return HttpResponse(
+            "Certificate not available because "
+            "application payment has not been confirmed.",
+            status=403  
+        )
+
+    if application.status != Application.Status.APPROVED:
+        return HttpResponse(
+            "Certificate not available", 
+            status=403
+        )
+
+    if not application.certificate:
+        return HttpResponse(
+            "Certificate file not found.", 
+            status=404
+        )
+
+    return render(
+        request,
+        "certificate/certificate.html",
+        {
+            "application": application
+        }
+    )
 
 #Function to Verify Certificate for the qrcode
 @csrf_exempt
@@ -1144,13 +2219,33 @@ def public_search(request):
         "search_query": reg_number,
     })
 
-#Function to display the certificate after verification
+#Function to display certificate for the public
 def public_certificate(request, token):
+
     application = get_object_or_404(
         Application,
         verification_token=token,
         status=Application.Status.APPROVED
     )
+
+    payment = Payment.objects.filter(
+        application=application,
+        payment_type=Payment.PaymentType.APPLICATION
+    ).order_by("-created_at").first()
+
+    if (
+        not payment
+        or payment.status != Payment.Status.CONFIRMED
+    ):
+        return render(
+            request,
+            "error.html",
+            {
+                "message":
+                    "This certificate is not available because "
+                    "the application payment has not been confirmed."
+            }
+        )
 
     return render(
         request,

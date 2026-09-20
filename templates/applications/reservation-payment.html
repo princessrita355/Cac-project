@@ -205,7 +205,7 @@
 
           <p class="text-muted mb-0">
 
-            Complete the simulated payment for your business name
+            Complete the simulated payment for your business/company name
             reservation.
 
           </p>
@@ -320,7 +320,11 @@
                 <div>
 
                   <div class="small text-muted">
-                    Proposed Business Name
+                     {% if application.registration_type == "company" %}
+                          Company Name
+                        {% else %}
+                          Business Name
+                        {% endif %}
                   </div>
 
                 </div>
@@ -393,7 +397,7 @@
                   This is a simulated payment for the purpose of
                   this system.
 
-                  Your business name will
+                  Your business/company name will
 
                   <strong>not become officially reserved</strong>
 

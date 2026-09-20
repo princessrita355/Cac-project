@@ -16,7 +16,7 @@ urlpatterns = [
     path("name-reservation/payment/<str:reference_id>/", views.reservation_payment, name="reservation_payment" ),
     path("reservation-payment-status/<str:reference_id>/",views.reservation_payment_status, name="reservation_payment_status"),
     path("application-payment/<str:reference_id>/",views.application_payment,name="application_payment"),
-    path("application-payment-status/<str:reference_id>/", views.application_payment_status,name="application_payment_status")
-   
+    path("application-payment-status/<str:reference_id>/", views.application_payment_status,name="application_payment_status"),
+    path("company/start/", views.company_start_application, name="company_start"),
 
 ]

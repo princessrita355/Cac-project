@@ -167,8 +167,12 @@
                 <div class="col-12 col-md-6">
 
                   <div class="small text-muted">
-                    Business Name
-                  </div>
+                        {% if application.registration_type == "company" %}
+                          Company Name
+                        {% else %}
+                          Business Name
+                        {% endif %}
+                </div>
 
                   <div class="fw-semibold">
                     {{ application.proposed_name_1 }}
@@ -196,13 +200,21 @@
 
                 <div class="col-12 col-md-6">
 
-                  <div class="small text-muted">
-                    Business Type
-                  </div>
+                   <div class="small text-muted">
+                      {% if application.registration_type == "company" %}
+                        Company Type
+                      {% else %}
+                        Business Type
+                      {% endif %}
+                    </div>
 
-                  <div class="fw-semibold">
-                    {{ application.business_type }}
-                  </div>
+      <div class="fw-semibold">
+        {% if application.registration_type == "company" %}
+          {{ application.company_details.get_company_type_display }}
+        {% else %}
+          {{ application.business_type }}
+        {% endif %}
+      </div>
 
                 </div>
 
@@ -325,9 +337,13 @@
                     Name Reservation
                   </div>
 
-                  <div class="small text-muted">
-                    Business name confirmed
-                  </div>
+                <div class="small text-muted">
+                      {% if application.registration_type == "company" %}
+                        Company name confirmed
+                      {% else %}
+                        Business name confirmed
+                      {% endif %}
+            </div>
 
                 </div>
 

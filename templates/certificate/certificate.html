@@ -6,73 +6,165 @@
   <title>CAC Certificate</title>
   <link rel="stylesheet" href="{% static 'css/certificate.css' %}">
 </head>
+
 <body>
 
 <div class="certificate">
-   <!-- WATERMARK -->
+
+  <!-- WATERMARK -->
   <div class="watermark">CAC</div>
 
   <!-- HEADER -->
   <div class="header">
-    <img src="{% static 'images/arm.png' %}" alt="Coat of Arms" class="coat-of-arms" width="70" height="">
+
+    <img
+      src="{% static 'images/arm.png' %}"
+      alt="Coat of Arms"
+      class="coat-of-arms"
+      width="70"
+    >
+
     <h5>FEDERAL REPUBLIC OF NIGERIA</h5>
-    <h3>CERTIFICATE OF REGISTRATION</h3>
-    <h4 class="sub">BUSINESS NAME REGISTRATION NO.{{ application.registration_number }}</h4>
+
+    {% if application.registration_type == "company" %}
+
+      <h3>CERTIFICATE OF INCORPORATION</h3>
+
+      <h4 class="sub">
+        COMPANY REGISTRATION NO. {{ application.registration_number }}
+      </h4>
+
+    {% else %}
+
+      <h3>CERTIFICATE OF REGISTRATION</h3>
+
+      <h4 class="sub">
+        BUSINESS NAME REGISTRATION NO. {{ application.registration_number }}
+      </h4>
+
+    {% endif %}
+
   </div>
+
 
   <!-- BODY -->
   <div class="body">
-    <h6 class="general">THE REGISTRAR - GENERAL OF CORPORATE AFFAIRS COMMISSION</h6>
 
-    <p class="certify"> hereby certifies that</p>
+    <h6 class="general">
+      THE REGISTRAR - GENERAL OF CORPORATE AFFAIRS COMMISSION
+    </h6>
+
+    <p class="certify">
+      hereby certifies that
+    </p>
 
     <h1 class="business-name">
-      {{application.proposed_name_1}}
+      {{ application.proposed_name_1 }}
     </h1>
 
-    <p class="day">
-      is this day registered as a business name under the
-    </p>
 
-    <p class="law">
-      COMPANIES AND ALLIED MATTERS ACT 2020
-    </p>
+    {% if application.registration_type == "company" %}
 
-    <p class="italic">The general nature of business is:</p>
+      <p class="day">
+        is this day incorporated as a company under the
+      </p>
 
-    <p class="bold">{{application.nature_of_business}}</p>
+      <p class="law">
+        COMPANIES AND ALLIED MATTERS ACT 2020
+      </p>
 
-    <p class="italics">
-      The address of the principal place of business is:
-    </p>
+      <p class="italic">
+        The company type is:
+      </p>
 
-    <h5 class="line">{{application.business_address}},{{application.lga}},{{application.state}}</h5>
+      <p class="bold">
+        {{ application.company_details.get_company_type_display }}
+      </p>
 
-    <h5 class="given">Given under my hand at Abuja this {{ application.approved_at|date:"jS" }} day of {{ application.approved_at|date:"F" }}, {{ application.approved_at|date:"Y" }}</h5>
-       
-    <img src="{% static 'images/watermark.png' %}" alt="Watermark" class="watermark-bg" width="142">
-    
+      <p class="italics">
+        The principal business activity is:
+      </p>
+
+      <p class="bold business-name">
+        {{ application.company_details.principal_business_activity }}
+      </p>
+
+      <p class="italics">
+        The registered office address is:
+      </p>
+
+      <h5 class="line">
+        {{ application.business_address }},
+        {{ application.lga }},
+        {{ application.state }}
+      </h5>
+
+    {% else %}
+
+      <p class="day">
+        is this day registered as a business name under the
+      </p>
+
+      <p class="law">
+        COMPANIES AND ALLIED MATTERS ACT 2020
+      </p>
+
+      <p class="italic">
+        The general nature of business is:
+      </p>
+
+      <p class="bold">
+        {{ application.nature_of_business }}
+      </p>
+
+      <p class="italics">
+        The address of the principal place of business is:
+      </p>
+
+      <h5 class="line">
+        {{ application.business_address }},
+        {{ application.lga }},
+        {{ application.state }}
+      </h5>
+
+    {% endif %}
+
+
+    <h5 class="given">
+      Given under my hand at Abuja this
+      {{ application.approved_at|date:"jS" }}
+      day of
+      {{ application.approved_at|date:"F" }},
+      {{ application.approved_at|date:"Y" }}
+    </h5>
+
+    <img
+      src="{% static 'images/watermark.png' %}"
+      alt="Watermark"
+      class="watermark-bg"
+      width="142"
+    >
+
   </div>
- <!-- QR CODE AREA -->
-  <!-- <div class="qr-section">
-    <div class="qr-box">
-        {% if application.qr_code %}
-            <img src="{{ application.qr_code.url }}" alt="QR Code" class="qr-code" width="100"  object-fit="contain">
-        {% endif %}
-    </div> -->
-     {% if application.qr_code %}
-            <img src="{{ application.qr_code.url }}" alt="QR Code" class="qr-code" object_fit="contain">
-        {% endif %}  
-    <img src="{% static 'images/sign.png' %}" alt="registrar's signature" class="signature" >
-  
-      
-     
 
 
-  </div>
- 
+  <!-- QR CODE -->
 
- 
+  {% if application.qr_code %}
+    <img
+      src="{{ application.qr_code.url }}"
+      alt="QR Code"
+      class="qr-code"
+    >
+  {% endif %}
+
+  <img
+    src="{% static 'images/sign.png' %}"
+    alt="registrar's signature"
+    class="signature"
+  >
+
+</div>
 
 </body>
 </html>

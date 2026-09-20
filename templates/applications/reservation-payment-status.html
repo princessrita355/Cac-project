@@ -82,7 +82,7 @@
           class="nav-link"
           href="{% url 'applications:start' %}"
         >
-          Register Business
+          Register Business / Company
         </a>
       </li>
 
@@ -130,7 +130,7 @@
       </h1>
 
       <p class="text-muted mb-0">
-        View the current status of your business name reservation payment.
+        View the current status of your business/company name reservation payment.
       </p>
 
     </div>
@@ -298,11 +298,30 @@
             <div class="col-md-6">
 
               <div class="small text-muted mb-1">
-                Proposed Business Name
+                Proposed Business/Company Name
               </div>
 
               <div class="fw-bold">
                 {{ reservation.proposed_name }}
+              </div>
+
+            </div>
+
+
+            <div class="col-md-6">
+
+              <div class="small text-muted mb-1">
+                Registration Type
+              </div>
+
+              <div class="fw-semibold">
+
+                {% if reservation.registration_type == "company" %}
+                  Company
+                {% else %}
+                  Business Name
+                {% endif %}
+
               </div>
 
             </div>
@@ -513,7 +532,7 @@
                 <p class="mb-0">
                   Your payment has been submitted successfully.
                   CAC staff will review and confirm the payment.
-                  Your business name is <strong>not officially reserved yet</strong>.
+                  Your business/company name is <strong>not officially reserved yet</strong>.
                 </p>
 
               </div>
@@ -595,7 +614,7 @@
               class="btn btn-primary"
             >
               <i class="fa-solid fa-building me-2"></i>
-              Register Business
+              Register Business / Company
             </a>
 
           {% endif %}

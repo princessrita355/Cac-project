@@ -35,6 +35,9 @@ def certificate_upload_path(instance, filename):
 
 # details that are saved in the database
 class Application(models.Model):
+    class RegistrationType(models.TextChoices):
+        BUSINESS = "business", "Business Name"
+        COMPANY = "company", "Company"
     class Status(models.TextChoices):
         SUBMITTED = "submitted", "Submitted"
         PENDING = "pending", "Pending Review"
@@ -46,6 +49,10 @@ class Application(models.Model):
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="applications")
     name_reservation = models.OneToOneField("NameReservation",on_delete=models.PROTECT, null=True, blank=True, related_name="application" )
+     # NEW:
+    # Identifies whether this application is for a Business Name
+    # or a Company.
+    registration_type = models.CharField(max_length=20,choices=RegistrationType.choices,default=RegistrationType.BUSINESS)
     proposed_name_1 = models.CharField(max_length=200,)
     proposed_name_2 = models.CharField(max_length=200, blank=True)
 
@@ -198,6 +205,154 @@ class Application(models.Model):
         self.save()
 
 
+# ============================================================
+# COMPANY DETAILS
+# ============================================================
+
+class CompanyDetails(models.Model):
+
+    class CompanyType(models.TextChoices):
+        PRIVATE_LIMITED_BY_SHARES = (
+            "private_limited_by_shares",
+            "Private Company Limited by Shares"
+        )
+        PUBLIC_LIMITED_BY_SHARES = (
+            "public_limited_by_shares",
+            "Public Company Limited by Shares"
+        )
+        UNLIMITED = (
+            "unlimited",
+            "Unlimited Company"
+        )
+        LIMITED_BY_GUARANTEE = (
+            "limited_by_guarantee",
+            "Company Limited by Guarantee"
+        )
+
+    application = models.OneToOneField(
+        Application,
+        on_delete=models.CASCADE,
+        related_name="company_details"
+    )
+
+    company_type = models.CharField(
+        max_length=40,
+        choices=CompanyType.choices
+    )
+
+    principal_business_activity = models.CharField(
+        max_length=255
+    )
+
+    company_email = models.EmailField()
+
+    company_phone = models.CharField(
+        max_length=30
+    )
+
+    company_description = models.TextField(
+        blank=True
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True
+    )
+
+    def __str__(self):
+        return f"Company Details - {self.application.proposed_name_1}"
+
+
+# ============================================================
+# COMPANY DIRECTOR
+# ============================================================
+
+class CompanyDirector(models.Model):
+
+    application = models.ForeignKey(
+        Application,
+        on_delete=models.CASCADE,
+        related_name="company_directors"
+    )
+
+    first_name = models.CharField(
+        max_length=60
+    )
+
+    last_name = models.CharField(
+        max_length=60
+    )
+
+    email = models.EmailField()
+
+    phone = models.CharField(
+        max_length=30
+    )
+
+    address = models.CharField(
+        max_length=255
+    )
+
+    date_of_birth = models.DateField()
+
+    nationality = models.CharField(
+        max_length=60
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    def __str__(self):
+        return (
+            f"{self.first_name} {self.last_name} "
+            f"- {self.application.proposed_name_1}"
+        )
+
+
+# ============================================================
+# COMPANY SHAREHOLDER
+# ============================================================
+
+class CompanyShareholder(models.Model):
+
+    application = models.ForeignKey(
+        Application,
+        on_delete=models.CASCADE,
+        related_name="company_shareholders"
+    )
+
+    full_name = models.CharField(
+        max_length=120
+    )
+
+    email = models.EmailField()
+
+    phone = models.CharField(
+        max_length=30
+    )
+
+    number_of_shares = models.PositiveIntegerField()
+
+    shareholding_percentage = models.DecimalField(
+        max_digits=5,
+        decimal_places=2
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    def __str__(self):
+        return (
+            f"{self.full_name} "
+            f"- {self.application.proposed_name_1}"
+        )
+
+
 
 
 class SystemFee(models.Model):
@@ -228,6 +383,11 @@ class SystemFee(models.Model):
 
 
 class NameReservation(models.Model):
+    class RegistrationType(models.TextChoices):
+
+        BUSINESS = "business", "Business Name"
+
+        COMPANY = "company", "Company"
 
     class Status(models.TextChoices):
         AWAITING_PAYMENT = "awaiting_payment", "Awaiting Payment"
@@ -260,6 +420,14 @@ class NameReservation(models.Model):
         db_index=True
     )
 
+    # NEW:
+    # Stores whether the reserved name is for a
+    # Business Name or Company.
+    registration_type = models.CharField(
+        max_length=20,
+        choices=RegistrationType.choices,
+        default=RegistrationType.BUSINESS
+    )
     status = models.CharField(
         max_length=30,
         choices=Status.choices,
