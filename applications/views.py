@@ -1287,12 +1287,6 @@ def company_start_application(request):
     )
 
 
-    messages.success(
-        request,
-        "Company application created successfully. "
-        "Please proceed to payment."
-    )
-
     return redirect(
         "applications:application_payment",
         reference_id=application.reference_id
